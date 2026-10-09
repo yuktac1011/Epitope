@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, createContext, useContext } from "react";
 
 type Screen = "overview" | "curve" | "banks" | "rounds" | "audit" | "limits";
 type IconName =
@@ -27,7 +27,7 @@ const screens: { id: Screen; label: string; icon: IconName }[] = [
   { id: "limits", label: "Limitations", icon: "alert" },
 ];
 
-const bankData = [
+const defaultBankData = [
   { id: 1, samples: "228,450", prevalence: 0.14, local: 0.611, fed: 0.687, recall: 0.714, gain: 0.076 },
   { id: 2, samples: "194,820", prevalence: 0.11, local: 0.574, fed: 0.662, recall: 0.681, gain: 0.088 },
   { id: 3, samples: "72,190", prevalence: 0.06, local: 0.412, fed: 0.548, recall: 0.603, gain: 0.136 },
@@ -35,12 +35,29 @@ const bankData = [
   { id: 5, samples: "301,760", prevalence: 0.22, local: 0.704, fed: 0.691, recall: 0.733, gain: -0.013 },
 ];
 
-const metricsByParticipation: Record<number, number[]> = {
+const defaultMetrics: Record<number, number[]> = {
   1: [0.611, 0.714, 0.681, 0.646, 0.902],
   2: [0.638, 0.729, 0.695, 0.661, 0.911],
   3: [0.661, 0.751, 0.718, 0.689, 0.921],
   5: [0.687, 0.773, 0.742, 0.713, 0.932],
 };
+
+const defaultLedger = [
+  ["14:32:08.418","Bank 2","12","model_update","41.2 KB"],
+  ["14:32:08.632","Bank 1","12","metadata","0.8 KB"],
+  ["14:32:07.994","Bank 5","12","model_update","41.3 KB"],
+  ["14:31:59.201","Bank 3","11","model_update","41.1 KB"],
+];
+
+const DataContext = createContext({
+  bankData: defaultBankData,
+  metricsByParticipation: defaultMetrics,
+  ledger: defaultLedger
+});
+
+function useData() {
+  return useContext(DataContext);
+}
 
 function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, React.ReactNode> = {
@@ -89,7 +106,8 @@ function Segmented({ options, value, onChange }: { options: string[]; value: str
 function Overview() {
   const [banks, setBanks] = useState(5);
   const [scope, setScope] = useState("Macro average");
-  const values = metricsByParticipation[banks];
+  const { metricsByParticipation } = useData();
+  const values = metricsByParticipation[banks] || defaultMetrics[5];
   const metrics = [
     ["PR-AUC", values[0], "+12.4%"],
     ["Recall @ 1% FPR", values[1], "+8.1%"],
@@ -141,6 +159,7 @@ function NetworkVisual({ count }: { count: number }) {
 }
 
 function ParticipationCurve() {
+  const { bankData } = useData();
   const [metric, setMetric] = useState("PR-AUC");
   const fed = metric === "PR-AUC" ? "M48 198 C150 189 180 159 280 151 S410 112 520 90 S660 51 760 43" : "M48 187 C155 174 192 154 280 140 S420 107 520 85 S665 56 760 52";
   return (
@@ -171,6 +190,7 @@ function LineChart({ path }: { path: string }) {
 }
 
 function BankResults() {
+  const { bankData } = useData();
   const [selected, setSelected] = useState<number | null>(null);
   return (
     <>
@@ -197,6 +217,7 @@ function BankDrawer({ bank, onClose }: { bank: typeof bankData[number]; onClose:
 }
 
 function TrainingRounds() {
+  const { bankData } = useData();
   const [running, setRunning] = useState(true);
   const [round, setRound] = useState(12);
   useEffect(() => { if (!running) return; const timer = window.setInterval(() => setRound((r) => r >= 20 ? 1 : r + 1), 4500); return () => clearInterval(timer); }, [running]);
@@ -215,12 +236,7 @@ function TrainingRounds() {
 }
 
 function Audit() {
-  const ledger = [
-    ["14:32:08.418","Bank 2","12","model_update","41.2 KB"],
-    ["14:32:08.632","Bank 1","12","metadata","0.8 KB"],
-    ["14:32:07.994","Bank 5","12","model_update","41.3 KB"],
-    ["14:31:59.201","Bank 3","11","model_update","41.1 KB"],
-  ];
+  const { ledger } = useData();
   return (
     <>
       <PageHeader eyebrow="Evidence trail" title="Data boundary audit" description="Inspect exactly what remains within each bank and what reaches the coordinator." />
@@ -255,29 +271,47 @@ function Limitations() {
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("overview");
+  const [data, setData] = useState({
+    bankData: defaultBankData,
+    metricsByParticipation: defaultMetrics,
+    ledger: defaultLedger
+  });
+
+  useEffect(() => {
+    Promise.all([
+      fetch("http://localhost:8000/api/banks").then(r => r.json()).catch(() => defaultBankData),
+      fetch("http://localhost:8000/api/metrics").then(r => r.json()).catch(() => defaultMetrics),
+      fetch("http://localhost:8000/api/audit/ledger").then(r => r.json()).catch(() => defaultLedger)
+    ]).then(([bankData, metricsByParticipation, ledger]) => {
+      setData({ bankData, metricsByParticipation, ledger });
+    });
+  }, []);
+
   const active = useMemo(() => screens.find((item) => item.id === screen)!, [screen]);
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-mark"><svg viewBox="0 0 32 32"><path d="M16 2 28 7v8c0 7.5-5.1 12.7-12 15-6.9-2.3-12-7.5-12-15V7l12-5Z"/><path d="M10 12h12M10 16h9M10 20h6"/></svg></div>
-        <nav>{screens.map((item)=><button key={item.id} className={screen===item.id?"active":""} onClick={()=>setScreen(item.id)} aria-label={item.label}><Icon name={item.icon}/><span>{item.label}</span></button>)}</nav>
-        <div className="side-bottom"><span className="secure-pulse"/><small>LOCAL<br/>SECURE</small></div>
-      </aside>
-      <div className="app-main">
-        <header className="topbar">
-          <div className="wordmark"><b>Fed<span>Shield</span></b><i>Research Console</i></div>
-          <div className="topbar-center"><div className="experiment-select"><span>Experiment</span><select defaultValue="run1"><option value="run1">Run #1 — seed 42</option><option value="run2">Run #2 — seed 17</option></select></div><div className="round-counter"><span>Round</span><b>12 <i>/ 20</i></b></div></div>
-          <Chip tone="cyan"><span className="status-dot"/>Coordinator: neutral · receives updates only</Chip>
-        </header>
-        <main key={active.id}>
-          {screen === "overview" && <Overview />}
-          {screen === "curve" && <ParticipationCurve />}
-          {screen === "banks" && <BankResults />}
-          {screen === "rounds" && <TrainingRounds />}
-          {screen === "audit" && <Audit />}
-          {screen === "limits" && <Limitations />}
-        </main>
+    <DataContext.Provider value={data}>
+      <div className="app-shell">
+        <aside className="sidebar">
+          <div className="brand-mark"><svg viewBox="0 0 32 32"><path d="M16 2 28 7v8c0 7.5-5.1 12.7-12 15-6.9-2.3-12-7.5-12-15V7l12-5Z"/><path d="M10 12h12M10 16h9M10 20h6"/></svg></div>
+          <nav>{screens.map((item)=><button key={item.id} className={screen===item.id?"active":""} onClick={()=>setScreen(item.id)} aria-label={item.label}><Icon name={item.icon}/><span>{item.label}</span></button>)}</nav>
+          <div className="side-bottom"><span className="secure-pulse"/><small>LOCAL<br/>SECURE</small></div>
+        </aside>
+        <div className="app-main">
+          <header className="topbar">
+            <div className="wordmark"><b>Fed<span>Shield</span></b><i>Research Console</i></div>
+            <div className="topbar-center"><div className="experiment-select"><span>Experiment</span><select defaultValue="run1"><option value="run1">Run #1 — seed 42</option><option value="run2">Run #2 — seed 17</option></select></div><div className="round-counter"><span>Round</span><b>12 <i>/ 20</i></b></div></div>
+            <Chip tone="cyan"><span className="status-dot"/>Coordinator: neutral · receives updates only</Chip>
+          </header>
+          <main key={active.id}>
+            {screen === "overview" && <Overview />}
+            {screen === "curve" && <ParticipationCurve />}
+            {screen === "banks" && <BankResults />}
+            {screen === "rounds" && <TrainingRounds />}
+            {screen === "audit" && <Audit />}
+            {screen === "limits" && <Limitations />}
+          </main>
+        </div>
       </div>
-    </div>
+    </DataContext.Provider>
   );
 }
