@@ -35,7 +35,7 @@ const screens: { id: Screen; label: string; icon: IconName }[] = [
   { id: "limits", label: "Limitations", icon: "alert" },
 ];
 
-const bankData = [
+const defaultBankData = [
   { id: 1, samples: "228,450", prevalence: 0.14, local: 0.611, fed: 0.687, recall: 0.714, gain: 0.076 },
   { id: 2, samples: "194,820", prevalence: 0.11, local: 0.574, fed: 0.662, recall: 0.681, gain: 0.088 },
   { id: 3, samples: "72,190",  prevalence: 0.06, local: 0.412, fed: 0.548, recall: 0.603, gain: 0.136 },
@@ -43,7 +43,7 @@ const bankData = [
   { id: 5, samples: "301,760", prevalence: 0.22, local: 0.704, fed: 0.691, recall: 0.733, gain: -0.013 },
 ];
 
-const metricsByParticipation: Record<number, number[]> = {
+const defaultMetrics: Record<number, number[]> = {
   1: [0.611, 0.714, 0.681, 0.646, 0.902],
   2: [0.638, 0.729, 0.695, 0.661, 0.911],
   3: [0.661, 0.751, 0.718, 0.689, 0.921],
@@ -123,7 +123,8 @@ function Segmented({ options, value, onChange }: { options: string[]; value: str
 function Overview() {
   const [banks, setBanks] = useState(5);
   const [scope, setScope] = useState("Macro average");
-  const values = metricsByParticipation[banks];
+  const { metricsByParticipation } = useData();
+  const values = metricsByParticipation[banks] || defaultMetrics[5];
   const metrics = [
     ["PR-AUC", values[0], "+12.4%"],
     ["Recall @ 1% FPR", values[1], "+8.1%"],
@@ -246,6 +247,7 @@ function NetworkVisual({ count }: { count: number }) {
 
 // ── Participation Curve ────────────────────────────────────────────────
 function ParticipationCurve() {
+  const { bankData } = useData();
   const [metric, setMetric] = useState("PR-AUC");
   const fed = metric === "PR-AUC"
     ? "M48 198 C150 189 180 159 280 151 S410 112 520 90 S660 51 760 43"
@@ -354,6 +356,7 @@ function LineChart({ path }: { path: string }) {
 
 // ── Bank Results ───────────────────────────────────────────────────────
 function BankResults() {
+  const { bankData } = useData();
   const [selected, setSelected] = useState<number | null>(null);
   return (
     <>
@@ -533,6 +536,7 @@ function BankDrawer({ bank, onClose }: { bank: typeof bankData[number]; onClose:
 
 // ── Training Rounds ────────────────────────────────────────────────────
 function TrainingRounds() {
+  const { bankData } = useData();
   const [running, setRunning] = useState(true);
   const [round, setRound] = useState(12);
   useEffect(() => {
