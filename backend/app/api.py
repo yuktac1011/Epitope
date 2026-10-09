@@ -37,6 +37,7 @@ class PerBankMetric(BaseModel):
     bank_id: int
     local_ap: float
     federated_ap: float
+    federated_recall_1fpr: float
     improvement: float
 
 class AuditResponse(BaseModel):
@@ -101,6 +102,7 @@ def get_per_bank_results():
             bank_id=int(row["BankID"]),
             local_ap=float(row["Average Precision_Local"]),
             federated_ap=float(row["Average Precision_Fed"]),
+            federated_recall_1fpr=float(row["Recall @ 1% FPR"]),
             improvement=float(row["Average Precision_Fed"] - row["Average Precision_Local"])
         ))
     return results

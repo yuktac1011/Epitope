@@ -106,12 +106,18 @@ app.include_router(laya_router)
 
 @app.get("/api/banks")
 def get_bank_data():
+    results = get_per_bank_results()
     return [
-        { "id": 1, "samples": "228,450", "prevalence": 0.14, "local": 0.611, "fed": 0.687, "recall": 0.714, "gain": 0.076 },
-        { "id": 2, "samples": "194,820", "prevalence": 0.11, "local": 0.574, "fed": 0.662, "recall": 0.681, "gain": 0.088 },
-        { "id": 3, "samples": "72,190", "prevalence": 0.06, "local": 0.412, "fed": 0.548, "recall": 0.603, "gain": 0.136 },
-        { "id": 4, "samples": "116,340", "prevalence": 0.09, "local": 0.521, "fed": 0.585, "recall": 0.642, "gain": 0.064 },
-        { "id": 5, "samples": "301,760", "prevalence": 0.22, "local": 0.704, "fed": 0.691, "recall": 0.733, "gain": -0.013 },
+        {
+            "id": metric.bank_id + 1,
+            "samples": None,
+            "prevalence": None,
+            "local": metric.local_ap,
+            "fed": metric.federated_ap,
+            "recall": metric.federated_recall_1fpr,
+            "gain": metric.improvement,
+        }
+        for metric in results
     ]
 
 @app.get("/api/metrics")

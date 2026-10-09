@@ -24,7 +24,6 @@ import {
   BankMetric,
   TriageRequest,
   TriageResponse,
-  DEFAULT_BANKS,
   DEFAULT_AUDIT_LEDGER,
 } from "@/lib/api";
 
@@ -260,7 +259,8 @@ function NetworkVisual({ count }: { count: number }) {
         <em>v12.4</em>
       </div>
       {positions.slice(0, count).map((p, i) => {
-        const bank = bankData[i] || DEFAULT_BANKS[i];
+        const bank = bankData[i];
+        if (!bank) return null;
         return (
           <div className="bank-node" key={i} style={{ left: `${p.x}%`, top: `${p.y}%` }}>
             <div className="lock-ring"><Icon name="lock" size={15} /></div>
@@ -395,7 +395,12 @@ function LineChart({ path }: { path: string }) {
 // ── Bank Results ───────────────────────────────────────────────────────
 function BankResults() {
   const [selected, setSelected] = useState<number | null>(null);
-  const { bankData } = useData();
+  const { bankData, isLoading, error } = useData();
+
+  if (isLoading) return <DataState title="Loading bank results" message="Reading per-bank evaluations from the backend..." />;
+  if (error || !bankData.length) {
+    return <DataState title="Bank results unavailable" message={error || "The backend returned no per-bank evaluations."} />;
+  }
 
   return (
     <>
@@ -438,7 +443,7 @@ function BankResults() {
                     </div>
                   </TableCell>
                   <TableCell className="mono">{bank.samples}</TableCell>
-                  <TableCell className="mono">{bank.prevalence.toFixed(2)}%</TableCell>
+                  <TableCell className="mono">{bank.prevalence == null ? "--" : `${bank.prevalence.toFixed(2)}%`}</TableCell>
                   <TableCell className="mono">{bank.local.toFixed(3)}</TableCell>
                   <TableCell className="mono bright">{bank.fed.toFixed(3)}</TableCell>
                   <TableCell>
@@ -494,7 +499,7 @@ function BankResults() {
           </div>
         </Glass>
       </div>
-      {selected && <BankDrawer bank={bankData[selected - 1] || DEFAULT_BANKS[0]} onClose={() => setSelected(null)} />}
+      {selected && bankData[selected - 1] && <BankDrawer bank={bankData[selected - 1]} onClose={() => setSelected(null)} />}
     </>
   );
 }
@@ -533,7 +538,7 @@ function BankDrawer({ bank, onClose }: { bank: BankMetric; onClose: () => void }
         </div>
         <div className="drawer-stats">
           <div><span>Dataset size</span><b>{bank.samples}</b></div>
-          <div><span>Fraud ratio</span><b>{bank.prevalence}%</b></div>
+          <div><span>Fraud ratio</span><b>{bank.prevalence == null ? "--" : `${bank.prevalence}%`}</b></div>
           <div>
             <span>PR-AUC gain</span>
             <b className={bank.gain < 0 ? "negative" : "positive"}>
