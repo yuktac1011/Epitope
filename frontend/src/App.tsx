@@ -25,7 +25,6 @@ import {
   TriageRequest,
   TriageResponse,
   DEFAULT_BANKS,
-  DEFAULT_METRICS,
   DEFAULT_AUDIT_LEDGER,
 } from "@/lib/api";
 
@@ -89,6 +88,16 @@ function Glass({ className = "", children }: { className?: string; children: Rea
   return <div className={`glass ${className}`}>{children}</div>;
 }
 
+function DataState({ title, message }: { title: string; message: string }) {
+  return (
+    <Glass className="flex min-h-55 flex-col items-center justify-center gap-2 p-8 text-center">
+      <span className="section-label">Dashboard status</span>
+      <strong className="text-lg text-white">{title}</strong>
+      <p className="max-w-lg text-sm text-slate-400">{message}</p>
+    </Glass>
+  );
+}
+
 // ── Page Header ────────────────────────────────────────────────────────
 function PageHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: React.ReactNode }) {
   return (
@@ -120,9 +129,22 @@ function Segmented({ options, value, onChange }: { options: string[]; value: str
 function Overview() {
   const [banks, setBanks] = useState(5);
   const [scope, setScope] = useState("Macro average");
-  const { metricsByParticipation, comparison } = useData();
+  const { metricsByParticipation, comparison, isLoading, error } = useData();
 
-  const values = metricsByParticipation[banks] || DEFAULT_METRICS[5];
+  if (isLoading) {
+    return <DataState title="Loading experiment results" message="Connecting to the FedShield backend..." />;
+  }
+
+  const values = metricsByParticipation[banks];
+  if (!values) {
+    return (
+      <DataState
+        title="Experiment results unavailable"
+        message={error || "The backend has not returned metrics for this federation size yet."}
+      />
+    );
+  }
+
   const metrics = [
     ["PR-AUC", values[0], "+12.4%"],
     ["Recall @ 1% FPR", values[1], "+8.1%"],
@@ -1149,7 +1171,7 @@ function LayaTriageScreen() {
                   </div>
                 ) : (
                   <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-200 text-xs shadow-lg flex items-center gap-2.5">
-                    <div className="w-6 h-6 rounded-full bg-emerald-500/20 grid place-items-center text-emerald-400 flex-shrink-0">
+                    <div className="w-6 h-6 rounded-full bg-emerald-500/20 grid place-items-center text-emerald-400 shrink-0">
                       <Icon name="check" size={14} />
                     </div>
                     <div>
