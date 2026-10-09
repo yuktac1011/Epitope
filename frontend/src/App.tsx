@@ -128,7 +128,7 @@ function Segmented({ options, value, onChange }: { options: string[]; value: str
 function Overview() {
   const [banks, setBanks] = useState(5);
   const [scope, setScope] = useState("Macro average");
-  const { metricsByParticipation, comparison, isLoading, error } = useData();
+    const { metricsByParticipation, comparison, bankData, macroResults, isLoading, error } = useData();
 
   if (isLoading) {
     return <DataState title="Loading experiment results" message="Connecting to the FedShield backend..." />;
@@ -145,11 +145,9 @@ function Overview() {
   }
 
   const metrics = [
-    ["PR-AUC", values[0], "+12.4%"],
-    ["Recall @ 1% FPR", values[1], "+8.1%"],
-    ["Precision", values[2], "+6.6%"],
-    ["F1 score", values[3], "+7.9%"],
-    ["ROC-AUC", values[4], "+2.8%"],
+      ["PR-AUC", values[0]],
+      ["Recall @ 1% FPR", values[1]],
+      ["Average Precision", values[2]],
   ];
 
   return (
@@ -190,13 +188,12 @@ function Overview() {
             <Segmented options={["Macro average", "Per bank"]} value={scope} onChange={setScope} />
           </div>
           <div className="kpi-grid">
-            {metrics.map(([label, value, delta], i) => (
+              {metrics.map(([label, value], i) => (
               <Glass className={`kpi ${i === 0 ? "primary" : ""}`} key={String(label)}>
                 <div className="kpi-label">{label}</div>
                 <div className={`kpi-value ${i === 0 ? "primary-value" : ""}`}>{Number(value).toFixed(3)}</div>
                 <div className="kpi-foot">
-                  <span className="positive">↑ {delta}</span>
-                  <span>vs local-only</span>
+                    <span>Macro average from backend</span>
                 </div>
               </Glass>
             ))}
@@ -211,14 +208,14 @@ function Overview() {
               </div>
               <Chip tone="cyan">FastAPI Live</Chip>
             </div>
-            {[["PR-AUC", 61, 69], ["Recall", 66, 77], ["F1", 63, 71]].map(([label, local, fed]) => (
-              <div className="compare-row" key={String(label)}>
-                <span>{label}</span>
+              {bankData.slice(0, 3).map((bank) => (
+                <div className="compare-row" key={bank.id}>
+                  <span>Bank {bank.id}</span>
                 <div className="bar-pair">
-                  <i className="bar-local" style={{ width: `${local}%` }} />
-                  <i className="bar-fed" style={{ width: `${fed}%` }} />
+                    <i className="bar-local" style={{ width: `${bank.local * 100}%` }} />
+                    <i className="bar-fed" style={{ width: `${bank.fed * 100}%` }} />
                 </div>
-                <b>{Number(fed) / 100}</b>
+                  <b>{bank.fed.toFixed(3)}</b>
               </div>
             ))}
             <div className="bar-key">
@@ -228,7 +225,46 @@ function Overview() {
           </Glass>
         </div>
       </div>
+      <Glass className="overview-trend">
+        <div className="card-top">
+          <div>
+            <span className="section-label">Performance as banks join</span>
+            <span className="sub-label">Backend macro results · higher is better</span>
+          </div>
+          <Chip tone="cyan">{macroResults.length} federation sizes</Chip>
+        </div>
+        <OverviewTrend results={macroResults} />
+      </Glass>
     </>
+  );
+}
+
+function OverviewTrend({ results }: { results: ReturnType<typeof useData>["macroResults"] }) {
+  if (!results.length) return <div className="sub-label p-4">No trend data returned by the backend.</div>;
+  const ordered = [...results].sort((a, b) => a.num_participating_banks - b.num_participating_banks);
+  const points = ordered.map((result, index) => {
+    const x = ordered.length === 1 ? 420 : 60 + (index * 700) / (ordered.length - 1);
+    const y = 205 - Math.max(0, Math.min(1, result.macro_pr_auc)) * 170;
+    return { ...result, x, y };
+  });
+  return (
+    <div className="line-chart overview-line-chart">
+      <svg viewBox="0 0 820 250" preserveAspectRatio="none" role="img" aria-label="PR-AUC by number of participating banks">
+        {[42, 82, 122, 162, 202].map((y) => <line key={y} x1="48" y1={y} x2="790" y2={y} className="chart-grid" />)}
+        <text x="8" y="45" className="chart-axis-label">1.0</text>
+        <text x="8" y="125" className="chart-axis-label">0.5</text>
+        <text x="8" y="205" className="chart-axis-label">0.0</text>
+        <polyline points={points.map((point) => `${point.x},${point.y}`).join(" ")} className="fed-line" fill="none" />
+        {points.map((point) => (
+          <g key={point.num_participating_banks}>
+            <circle cx={point.x} cy={point.y} r="5" className="overview-point" />
+            <text x={point.x} y={point.y - 12} textAnchor="middle" className="chart-value-label">{point.macro_pr_auc.toFixed(3)}</text>
+            <text x={point.x} y="230" textAnchor="middle" className="chart-axis-label">{point.num_participating_banks} bank{point.num_participating_banks === 1 ? "" : "s"}</text>
+          </g>
+        ))}
+      </svg>
+      <div className="chart-legend"><span><i className="fed-key" />Macro PR-AUC</span><span className="sub-label">Each point is one backend experiment setting</span></div>
+    </div>
   );
 }
 
