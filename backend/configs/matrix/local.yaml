@@ -1,0 +1,14 @@
+bank_ids:
+- 0
+- 1
+- 2
+- 3
+- 4
+local_epochs: 1
+method: local
+model: hybrid
+rounds: 5
+seeds:
+- 42
+- 43
+- 44

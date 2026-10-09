@@ -1,0 +1,6 @@
+method: fedavg
+model: hybrid
+bank_ids: [0, 1, 2]
+rounds: 3
+local_epochs: 1
+seeds: [42]

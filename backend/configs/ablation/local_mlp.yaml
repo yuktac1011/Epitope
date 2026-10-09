@@ -1,0 +1,24 @@
+aggregation_strategy: FedAvg
+attack:
+  attacker_fraction: 0.1
+  enabled: false
+  type: label_flip
+bank_ids:
+- 0
+- 1
+- 2
+- 3
+- 4
+dp:
+  delta: 1.0e-05
+  enabled: false
+  epsilon: 1.0
+  max_grad_norm: 1.0
+local_epochs: 1
+method: local
+model: mlp
+rounds: 5
+seeds:
+- 42
+- 43
+- 44
