@@ -28,7 +28,7 @@ import {
 } from "@/lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────
-type Screen = "overview" | "curve" | "banks" | "simulation" | "rounds" | "audit" | "limits" | "triage";
+type Screen = "overview" | "curve" | "banks" | "simulation" | "rounds" | "audit" | "playbook" | "limits" | "triage";
 type IconName =
   | "grid" | "chart" | "bank" | "rounds" | "shield" | "alert"
   | "lock" | "arrow" | "check" | "pause" | "play" | "reset" | "close";
@@ -41,6 +41,7 @@ const screens: { id: Screen; label: string; icon: IconName }[] = [
   { id: "rounds", label: "Training rounds", icon: "rounds" },
   { id: "audit", label: "Boundary audit", icon: "shield" },
   { id: "triage", label: "Laya Triage", icon: "shield" },
+  { id: "playbook", label: "Fraud playbook", icon: "alert" },
   { id: "limits", label: "Limitations", icon: "alert" },
 ];
 
@@ -1103,6 +1104,30 @@ function LayaTriageScreen() {
       receiver: "M77777",
       subtext: "Cash Out · $8,500 · Churn Hazard",
     },
+    {
+      id: "bec",
+      title: "Business Email Compromise",
+      badge: "Payment Intercept",
+      tone: "rose" as const,
+      text: "The CFO urgently asks finance to change the supplier bank account and wire the invoice before close of business.",
+      type: "TRANSFER",
+      amount: 27500,
+      sender: "CFO-EMAIL",
+      receiver: "SUPPLIER-NEW",
+      subtext: "Wire Transfer · $27,500 · Urgent impersonation",
+    },
+    {
+      id: "identity",
+      title: "Synthetic Identity",
+      badge: "Identity Risk",
+      tone: "violet" as const,
+      text: "A new applicant combines a real address with inconsistent identity details and requests a high-limit account immediately.",
+      type: "PAYMENT",
+      amount: 12000,
+      sender: "APPLICANT-902",
+      receiver: "NEW-ACCOUNT",
+      subtext: "Account Opening · $12,000 · Identity mismatch",
+    },
   ];
 
   const [activePresetId, setActivePresetId] = useState<string>("drain");
@@ -1576,7 +1601,7 @@ function LayaTriageScreen() {
                   </div>
                   <div className="telemetry-chip">
                     <span>Tokens</span>
-                    <b>{result.usage?.input_tokens || 64}</b>
+                    <b>{String(result.usage?.input_tokens || 64)}</b>
                   </div>
                   <div className="telemetry-chip">
                     <span>Architecture</span>
@@ -1588,6 +1613,131 @@ function LayaTriageScreen() {
           </div>
         </Glass>
       </div>
+    </>
+  );
+}
+
+// ── Fraud Playbook ─────────────────────────────────────────────────────
+function FraudPlaybook() {
+  const categories = [
+    { id: "unauthorized_transaction", name: "Unauthorized transaction", layer: "Both layers", tone: "rose" as const, signals: "Unknown charge, stolen card, or activity the account holder denies.", action: "Protect the account, verify the customer through a trusted channel, and review nearby transactions." },
+    { id: "account_takeover", name: "Account takeover", layer: "Laya + transaction risk", tone: "rose" as const, signals: "Suspicious login, password change, new device, or sudden cash-out.", action: "Require step-up verification, consider a temporary freeze, and route to fraud investigation." },
+    { id: "phishing_scam", name: "Phishing / social engineering", layer: "Laya triage", tone: "amber" as const, signals: "Credential requests, malicious links, impersonation, or urgent pressure.", action: "Stop the requested action, preserve the message and domain evidence, and notify security." },
+    { id: "business_email_compromise", name: "Business email compromise", layer: "Laya triage", tone: "amber" as const, signals: "Executive or supplier impersonation requesting an urgent payment or bank-detail change.", action: "Hold the payment and confirm instructions using an independent trusted contact." },
+    { id: "card_skimming", name: "Card skimming", layer: "Transaction risk", tone: "cyan" as const, signals: "Card-present anomalies, repeated withdrawals, or activity clustered around an ATM or terminal.", action: "Block or replace the card and inspect transactions around the suspected terminal." },
+    { id: "money_laundering", name: "Money laundering", layer: "Laya + compliance", tone: "violet" as const, signals: "Structuring, rapid transfers, layering, or funds moving through unrelated accounts.", action: "Preserve the transaction chain and route to AML/compliance without tipping off the subject." },
+    { id: "mule_account", name: "Mule account", layer: "Both layers", tone: "violet" as const, signals: "An account receives and moves money for another person or criminal network.", action: "Review counterparties and velocity, then escalate to fraud and compliance teams." },
+    { id: "identity_theft", name: "Identity theft", layer: "Laya triage", tone: "cyan" as const, signals: "Personal identity data used to open accounts or make transactions without consent.", action: "Pause the affected process and complete approved identity verification." },
+    { id: "synthetic_identity", name: "Synthetic identity", layer: "Laya triage", tone: "cyan" as const, signals: "Real and invented identity details combined to create a credible application.", action: "Hold onboarding or credit action and route for enhanced verification." },
+    { id: "investment_scam", name: "Investment scam", layer: "Laya triage", tone: "amber" as const, signals: "Guaranteed returns, fake platforms, crypto payment requests, or withdrawal barriers.", action: "Stop outbound payment where possible and provide customer-protection guidance." },
+    { id: "duplicate_charge", name: "Duplicate charge", layer: "Laya triage", tone: "default" as const, signals: "The customer reports being charged twice for the same purchase.", action: "Check authorization and settlement records before routing to payments support." },
+    { id: "sim_swap", name: "SIM swap fraud", layer: "Both layers", tone: "rose" as const, signals: "A sudden loss of mobile service followed by password resets, new-device access, or account changes.", action: "Lock high-risk actions, verify the customer through an independent channel, and contact the carrier." },
+    { id: "qr_code_scam", name: "QR-code payment scam", layer: "Laya triage", tone: "amber" as const, signals: "A QR code redirects the customer to an unexpected payment page or requests an urgent transfer.", action: "Stop the payment, preserve the destination URL, and warn the customer not to scan or retry it." },
+    { id: "refund_chargeback", name: "Refund / chargeback abuse", layer: "Transaction risk", tone: "cyan" as const, signals: "Repeated refund claims, disputed purchases after delivery, or coordinated chargeback activity.", action: "Review order, delivery, authorization, and prior dispute evidence before approving a refund." },
+    { id: "friendly_fraud", name: "Friendly fraud", layer: "Transaction risk", tone: "cyan" as const, signals: "A cardholder disputes a purchase that device, delivery, or account evidence connects to their activity.", action: "Compare device, authentication, delivery, and prior dispute signals before deciding the claim." },
+    { id: "ach_payment_fraud", name: "ACH / direct-debit fraud", layer: "Both layers", tone: "rose" as const, signals: "An unauthorized bank debit, changed mandate, or unusual recurring payment appears on the account.", action: "Stop further debits, verify the mandate, and route for payment-network investigation." },
+    { id: "account_opening_fraud", name: "Account-opening fraud", layer: "Laya triage", tone: "cyan" as const, signals: "A new account uses inconsistent identity, device, address, or document information.", action: "Pause onboarding and complete enhanced identity and device verification." },
+    { id: "romance_scam", name: "Romance scam", layer: "Laya triage", tone: "amber" as const, signals: "A trusted online contact creates emotional pressure for repeated transfers, gifts, or emergency payments.", action: "Pause the transfer, use a supportive non-judgmental conversation, and offer safeguarding guidance." },
+    { id: "tech_support_scam", name: "Tech-support scam", layer: "Laya triage", tone: "amber" as const, signals: "A caller or pop-up claims to be support and requests remote access, credentials, or payment.", action: "End the contact, revoke remote access, secure credentials, and review recent transactions." },
+    { id: "payroll_fraud", name: "Payroll diversion", layer: "Both layers", tone: "violet" as const, signals: "A request changes an employee or supplier bank account shortly before a scheduled payment.", action: "Hold the payment and verify the change using a known contact, not the requesting message." },
+    { id: "structuring", name: "Structuring", layer: "Compliance", tone: "violet" as const, signals: "Repeated deposits or withdrawals stay just below reporting thresholds across locations or accounts.", action: "Preserve the activity pattern and escalate to AML review without alerting the subject." },
+  ];
+  const sections = [
+    {
+      id: "transaction",
+      short: "Transaction risk",
+      title: "Shared transaction risk",
+      description: "Use this view when suspicious behavior appears in transaction or account activity.",
+      guidance: "The federated model contributes risk evidence without moving raw bank transactions.",
+      items: categories.filter((category) => category.layer.includes("Both") || category.layer.includes("Transaction")),
+    },
+    {
+      id: "narrative",
+      short: "Narrative triage",
+      title: "Laya narrative triage",
+      description: "Use this view when a customer report, alert narrative, or case note needs classification.",
+      guidance: "Laya suggests a pattern from the reported story; an analyst still validates the evidence.",
+      items: categories.filter((category) => category.layer === "Laya triage"),
+    },
+    {
+      id: "compliance",
+      short: "Compliance",
+      title: "Compliance and financial crime",
+      description: "Use this view for cases that require evidence preservation and specialist escalation.",
+      guidance: "Do not tip off the subject. Preserve the transaction chain and follow approved procedures.",
+      items: categories.filter((category) => category.layer.includes("compliance")),
+    },
+  ];
+  const [activeSectionId, setActiveSectionId] = useState("transaction");
+  const [selectedId, setSelectedId] = useState(categories[0].id);
+  const activeSection = sections.find((section) => section.id === activeSectionId) || sections[0];
+  const selected = categories.find((category) => category.id === selectedId) || activeSection.items[0];
+
+  const selectSection = (sectionId: string) => {
+    const section = sections.find((item) => item.id === sectionId) || sections[0];
+    setActiveSectionId(section.id);
+    if (!section.items.some((item) => item.id === selectedId)) {
+      setSelectedId(section.items[0].id);
+    }
+  };
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Analyst reference"
+        title="Fraud playbook"
+        description="Use the model outputs as a starting point: identify the pattern, understand the signal, and choose the next controlled action."
+        action={<Chip tone="amber">Synthetic benchmark · research use</Chip>}
+      />
+      <Glass className="playbook-intro">
+        <div className="playbook-intro-icon"><Icon name="shield" size={22} /></div>
+        <div><b>Choose a case type to begin</b><p>This reference separates model evidence, narrative triage, and compliance handling so analysts can read one workflow at a time.</p></div>
+        <InfoTip text="A category is a triage hypothesis, not proof that fraud occurred. Confirm it with approved bank procedures and evidence." />
+      </Glass>
+      <div className="playbook-section-tabs" role="tablist" aria-label="Playbook sections">
+        {sections.map((section, index) => (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeSection.id === section.id}
+            className={`playbook-section-tab ${activeSection.id === section.id ? "active" : ""}`}
+            onClick={() => selectSection(section.id)}
+            key={section.id}
+          >
+            <span className="playbook-tab-number">0{index + 1}</span>
+            <span><b>{section.short}</b><small>{section.items.length} patterns</small></span>
+            <Icon name="arrow" size={15} />
+          </button>
+        ))}
+      </div>
+      <Glass className="playbook-section-intro">
+        <div>
+          <span className="eyebrow">Section {String(sections.findIndex((section) => section.id === activeSection.id) + 1).padStart(2, "0")}</span>
+          <h2>{activeSection.title}</h2>
+          <p>{activeSection.description}</p>
+        </div>
+        <div className="playbook-section-guidance"><span>Workflow note</span><b>{activeSection.items.length} patterns in this section</b><p>{activeSection.guidance}</p></div>
+      </Glass>
+      <div className="playbook-pattern-grid">
+        {activeSection.items.map((category, index) => (
+          <button type="button" key={category.id} className={`playbook-pattern ${selected.id === category.id ? "active" : ""}`} onClick={() => setSelectedId(category.id)}>
+            <div className="playbook-pattern-top">
+              <span className="playbook-number">{String(index + 1).padStart(2, "0")}</span>
+              <span className={`playbook-dot ${category.tone}`} />
+              <Chip tone={category.tone}>{category.layer}</Chip>
+            </div>
+            <h3>{category.name}</h3>
+            <div className="playbook-pattern-copy"><span>Watch for</span><p>{category.signals}</p></div>
+            <div className="playbook-pattern-action"><span>Next action</span><p>{category.action}</p></div>
+            <div className="playbook-pattern-link">{selected.id === category.id ? "Selected workflow" : "Select pattern"} <Icon name="arrow" size={14} /></div>
+          </button>
+        ))}
+      </div>
+      <Glass className="playbook-selected">
+        <div className="playbook-selected-icon"><Icon name="check" size={20} /></div>
+        <div><span className="eyebrow">Selected workflow · {selected.id}</span><h2>{selected.name}</h2><p>Use this as a starting point, then validate the signal against bank evidence and the relevant procedure. Escalate when confidence is low, impact is high, or evidence conflicts.</p></div>
+        <InfoTip text="Selecting a pattern does not confirm fraud. It focuses the workflow for discussion and response planning." />
+      </Glass>
     </>
   );
 }
@@ -1783,6 +1933,7 @@ function AppContent() {
           {screen === "rounds"   && <TrainingRounds />}
           {screen === "audit"    && <Audit />}
           {screen === "triage"   && <LayaTriageScreen />}
+          {screen === "playbook" && <FraudPlaybook />}
           {screen === "limits"   && <Limitations />}
         </main>
       </div>
