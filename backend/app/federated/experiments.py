@@ -104,24 +104,26 @@ if __name__ == "__main__":
         results = run_experiment(num_banks, all_clients, num_rounds=5)
         all_results.append(results)
         
-    # Save results
-    output_rows = []
+    # Save per-bank results
+    per_bank_rows = []
     for res in all_results:
-        row = {
-            "Num_Participating_Banks": res["num_banks"],
-            "Macro_AP": res["macro_ap"],
-            "Macro_PR_AUC": res["macro_pr_auc"],
-            "Macro_Recall_1FPR": res["macro_recall"]
-        }
-        # Add per-bank breakdown
-        for bank_name, metrics in res["per_bank_results"].items():
-            row[f"{bank_name}_AP"] = metrics["ap"]
-        output_rows.append(row)
-        
-    results_df = pd.DataFrame(output_rows)
-    out_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'federated_experiment_results.csv'))
-    results_df.to_csv(out_path, index=False)
+        # Only include the 2, 3, and 5 bank settings as requested
+        if res["num_banks"] in [2, 3, 5]:
+            setting = f"{res['num_banks']} Banks"
+            for bank_name, metrics in res["per_bank_results"].items():
+                bank_id = bank_name.split("_")[1]
+                per_bank_rows.append({
+                    "Setting": setting,
+                    "BankID": bank_id,
+                    "Average Precision": metrics["ap"],
+                    "PR-AUC": metrics["pr_auc"],
+                    "Recall @ 1% FPR": metrics["recall_at_1_fpr"]
+                })
+                
+    per_bank_df = pd.DataFrame(per_bank_rows)
+    out_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'per_bank_federated_results.csv'))
+    per_bank_df.to_csv(out_path, index=False)
     
-    print(f"\n\nSUCCESS! Full experiments complete. Results saved to {out_path}")
-    print("\nSummary of Final Macro-Average Precision by network size:")
-    print(results_df[["Num_Participating_Banks", "Macro_AP", "Macro_PR_AUC", "Macro_Recall_1FPR"]].to_markdown(index=False))
+    print(f"\n\nSUCCESS! Full experiments complete. Per-bank results saved to {out_path}")
+    print("\nSummary of Per-Bank Metrics:")
+    print(per_bank_df.to_string(index=False))
