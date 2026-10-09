@@ -71,8 +71,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include existing API routes
+# Include existing API routes both under /legacy and directly under /api / root
 app.mount("/legacy", existing_app)
+
+from app.api import (
+    get_health,
+    get_macro_results,
+    get_per_bank_results,
+    get_comparison,
+    get_audit,
+    get_communication_metrics,
+    HealthResponse,
+    MacroMetric,
+    PerBankMetric,
+    AuditResponse,
+    CommunicationMetric,
+)
+
+app.add_api_route("/health", get_health, methods=["GET"], tags=["Health"])
+app.add_api_route("/api/health", get_health, methods=["GET"], tags=["Health"])
+app.add_api_route("/results/macro", get_macro_results, methods=["GET"], tags=["Metrics"])
+app.add_api_route("/api/results/macro", get_macro_results, methods=["GET"], tags=["Metrics"])
+app.add_api_route("/results/per-bank", get_per_bank_results, methods=["GET"], tags=["Metrics"])
+app.add_api_route("/api/results/per-bank", get_per_bank_results, methods=["GET"], tags=["Metrics"])
+app.add_api_route("/results/comparison", get_comparison, methods=["GET"], tags=["Metrics"])
+app.add_api_route("/api/results/comparison", get_comparison, methods=["GET"], tags=["Metrics"])
+app.add_api_route("/audit", get_audit, methods=["GET"], tags=["Audit"])
+app.add_api_route("/api/audit", get_audit, methods=["GET"], tags=["Audit"])
+app.add_api_route("/communication", get_communication_metrics, methods=["GET"], tags=["Communication"])
+app.add_api_route("/api/communication", get_communication_metrics, methods=["GET"], tags=["Communication"])
 
 # Include Laya decision model routes
 app.include_router(laya_router)
