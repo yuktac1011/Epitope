@@ -1,15 +1,71 @@
+import os
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from typing import Dict, List, Any
 from app.api import app as existing_app
+from app.laya.routes import router as laya_router
+from app.laya import service as laya_service
 
-app = FastAPI(title="FedShield API (Combined)")
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Lifespan — load Laya model at startup
+# ---------------------------------------------------------------------------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup: load and warm up the Laya decision model."""
+    logger.info("=== FedShield API Server starting ===")
+
+    checkpoint = os.getenv("LAYA_CHECKPOINT", "convaiinnovations/laya")
+    subfolder = os.getenv("LAYA_SUBFOLDER", None)
+    device = os.getenv("LAYA_DEVICE", None)
+
+    try:
+        laya_service.init_laya(
+            checkpoint=checkpoint,
+            subfolder=subfolder,
+            device=device,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to load Laya model — triage endpoints will return 503."
+        )
+
+    yield
+    logger.info("=== FedShield API Server shutting down ===")
+
+
+app = FastAPI(
+    title="FedShield API (Combined)",
+    description=(
+        "Backend API for FedShield — privacy-preserving federated fraud detection.\n\n"
+        "Includes the Laya decision model for fast, local text classification, "
+        "fraud triage, urgency scoring, and alert routing."
+    ),
+    version="0.1.0",
+    lifespan=lifespan,
+)
 
 # Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "*",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -17,6 +73,9 @@ app.add_middleware(
 
 # Include existing API routes
 app.mount("/legacy", existing_app)
+
+# Include Laya decision model routes
+app.include_router(laya_router)
 
 @app.get("/api/banks")
 def get_bank_data():
@@ -48,3 +107,4 @@ def get_audit_ledger():
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+
