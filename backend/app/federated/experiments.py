@@ -4,6 +4,7 @@ import time
 import numpy as np
 import pandas as pd
 import json
+from datetime import datetime, timezone
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 from backend.app.data.loader import get_raw_dataset
@@ -123,6 +124,25 @@ if __name__ == "__main__":
     per_bank_df = pd.DataFrame(per_bank_rows)
     out_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'per_bank_federated_results.csv'))
     per_bank_df.to_csv(out_path, index=False)
+
+    history_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'experiment_runs.json'))
+    try:
+        with open(history_path, 'r', encoding='utf-8') as history_file:
+            run_history = json.load(history_file)
+    except (FileNotFoundError, json.JSONDecodeError):
+        run_history = []
+    completed_at = datetime.now(timezone.utc).isoformat()
+    run_history.append({
+        "id": f"run-{len(run_history) + 1}",
+        "started_at": completed_at,
+        "completed_at": completed_at,
+        "status": "completed",
+        "participants": experiments,
+        "rounds": 5,
+        "seed": 42,
+    })
+    with open(history_path, 'w', encoding='utf-8') as history_file:
+        json.dump(run_history, history_file, indent=2)
     
     print(f"\n\nSUCCESS! Full experiments complete. Per-bank results saved to {out_path}")
     print("\nSummary of Per-Bank Metrics:")

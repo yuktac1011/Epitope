@@ -1,6 +1,9 @@
 import os
+import json
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -58,6 +61,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+APP_DIR = Path(__file__).resolve().parent
+
 # Enable CORS
 app.add_middleware(
     CORSMiddleware,
@@ -100,6 +105,56 @@ app.add_api_route("/audit", get_audit, methods=["GET"], tags=["Audit"])
 app.add_api_route("/api/audit", get_audit, methods=["GET"], tags=["Audit"])
 app.add_api_route("/communication", get_communication_metrics, methods=["GET"], tags=["Communication"])
 app.add_api_route("/api/communication", get_communication_metrics, methods=["GET"], tags=["Communication"])
+
+
+@app.get("/api/experiments/status")
+def get_experiment_status():
+    """Describe which experiment artifacts are available to the research console."""
+    artifacts = [
+        ("Macro results", APP_DIR / "federated" / "federated_experiment_results.csv"),
+        ("Per-bank federated results", APP_DIR / "federated" / "per_bank_federated_results.csv"),
+        ("Local baseline results", APP_DIR / "models" / "local_hybrid_per_bank.csv"),
+    ]
+    artifact_status = []
+    timestamps = []
+    available_count = 0
+    for label, path in artifacts:
+        available = path.exists()
+        row_count = None
+        generated_at = None
+        if available:
+            available_count += 1
+            modified = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+            generated_at = modified.isoformat()
+            timestamps.append(modified)
+            try:
+                import pandas as pd
+                row_count = int(len(pd.read_csv(path)))
+            except Exception:
+                row_count = None
+        artifact_status.append({
+            "name": label,
+            "filename": path.name,
+            "available": available,
+            "generated_at": generated_at,
+            "rows": row_count,
+        })
+
+    history_path = APP_DIR / "federated" / "experiment_runs.json"
+    history = []
+    if history_path.exists():
+        try:
+            history = json.loads(history_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            history = []
+
+    latest_run = max(timestamps).isoformat() if timestamps else None
+    return {
+        "status": "ready" if available_count == len(artifacts) else "partial" if available_count else "unavailable",
+        "latest_run": latest_run,
+        "artifacts": artifact_status,
+        "history": history,
+    }
 
 # Include Laya decision model routes
 app.include_router(laya_router)

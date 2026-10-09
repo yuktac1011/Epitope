@@ -28,7 +28,7 @@ import {
 } from "@/lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────
-type Screen = "overview" | "curve" | "banks" | "rounds" | "audit" | "limits" | "triage";
+type Screen = "overview" | "curve" | "banks" | "simulation" | "rounds" | "audit" | "limits" | "triage";
 type IconName =
   | "grid" | "chart" | "bank" | "rounds" | "shield" | "alert"
   | "lock" | "arrow" | "check" | "pause" | "play" | "reset" | "close";
@@ -37,6 +37,7 @@ const screens: { id: Screen; label: string; icon: IconName }[] = [
   { id: "overview", label: "Overview", icon: "grid" },
   { id: "curve", label: "Participation", icon: "chart" },
   { id: "banks", label: "Bank results", icon: "bank" },
+  { id: "simulation", label: "Live simulation", icon: "play" },
   { id: "rounds", label: "Training rounds", icon: "rounds" },
   { id: "audit", label: "Boundary audit", icon: "shield" },
   { id: "triage", label: "Laya Triage", icon: "shield" },
@@ -80,6 +81,15 @@ function Chip({ children, tone = "default", className = "" }: { children: React.
     amber: "amber",
   };
   return <Badge variant={variantMap[tone]} className={`font-sans text-[11px] font-medium tracking-normal px-2.5 py-0.5 ${className}`}>{children}</Badge>;
+}
+
+function InfoTip({ text }: { text: string }) {
+  return (
+    <span className="info-tip">
+      <button type="button" aria-label={text}>i</button>
+      <span role="tooltip">{text}</span>
+    </span>
+  );
 }
 
 // ── Glass card wrapper ─────────────────────────────────────────────────
@@ -128,7 +138,7 @@ function Segmented({ options, value, onChange }: { options: string[]; value: str
 function Overview() {
   const [banks, setBanks] = useState(5);
   const [scope, setScope] = useState("Macro average");
-    const { metricsByParticipation, comparison, bankData, macroResults, isLoading, error } = useData();
+    const { metricsByParticipation, comparison, bankData, macroResults, experimentStatus, isLoading, error } = useData();
 
   if (isLoading) {
     return <DataState title="Loading experiment results" message="Connecting to the FedShield backend..." />;
@@ -235,7 +245,49 @@ function Overview() {
         </div>
         <OverviewTrend results={macroResults} />
       </Glass>
+      <ExperimentStatusPanel status={experimentStatus} />
     </>
+  );
+}
+
+function ExperimentStatusPanel({ status }: { status: ReturnType<typeof useData>["experimentStatus"] }) {
+  if (!status) return null;
+  const statusTone = status.status === "ready" ? "green" : status.status === "partial" ? "amber" : "rose";
+  return (
+    <Glass className="experiment-status-panel">
+      <div className="card-top">
+        <div>
+          <span className="section-label">Experiment status</span>
+          <span className="sub-label">The result files currently driving this console</span>
+        </div>
+        <Chip tone={statusTone}>{status.status.toUpperCase()}</Chip>
+      </div>
+      <div className="experiment-status-grid">
+        <div className="run-summary">
+          <span className="muted-label">Latest generated result</span>
+          <strong>{status.latest_run ? new Date(status.latest_run).toLocaleString() : "No generated run found"}</strong>
+          <span className="sub-label">Refresh the backend after completing a new experiment.</span>
+        </div>
+        <div className="artifact-list">
+          {status.artifacts.map((artifact) => (
+            <div className="artifact-row" key={artifact.filename}>
+              <span className={artifact.available ? "artifact-dot ready" : "artifact-dot"} />
+              <div><b>{artifact.name}</b><small>{artifact.rows == null ? "Not available" : `${artifact.rows.toLocaleString()} rows`}</small></div>
+              <code>{artifact.filename}</code>
+            </div>
+          ))}
+        </div>
+        <div className="history-list">
+          <span className="muted-label">Run history</span>
+          {status.history.length ? status.history.slice(0, 3).map((run, index) => (
+            <div className="history-row" key={run.id || `${run.completed_at}-${index}`}>
+              <b>{run.id || `Run ${status.history.length - index}`}</b>
+              <span>{run.status || "completed"} · {run.rounds ? `${run.rounds} rounds` : "metadata recorded"}</span>
+            </div>
+          )) : <span className="sub-label">No run history has been recorded yet.</span>}
+        </div>
+      </div>
+    </Glass>
   );
 }
 
@@ -581,6 +633,7 @@ function BankDrawer({ bank, onClose }: { bank: BankMetric; onClose: () => void }
               {bank.gain > 0 ? "+" : ""}{bank.gain.toFixed(3)}
             </b>
           </div>
+          <div><span>Recall @ 1% FPR</span><b>{bank.recall.toFixed(3)}</b></div>
         </div>
         <Glass className="pr-card">
           <span className="section-label">Precision-recall curve</span>
@@ -596,21 +649,149 @@ function BankDrawer({ bank, onClose }: { bank: BankMetric; onClose: () => void }
         </Glass>
         <Glass className="matrix-card">
           <span className="section-label">Confusion matrix · 1% FPR</span>
-          <div className="matrix">
-            <div className="dim"></div>
-            <span className="dim">Pred. fraud</span>
-            <span className="dim">Pred. clean</span>
-            <span className="dim">Actual fraud</span>
-            <b className="tp">418</b>
-            <b>167</b>
-            <span className="dim">Actual clean</span>
-            <b>2,263</b>
-            <b className="tn">223,602</b>
-          </div>
+          <div className="matrix matrix-unavailable"><span className="dim">Confusion-matrix counts are not included in the current backend export.</span></div>
         </Glass>
-        <div className="drawer-note"><Icon name="alert" size={15} /> Confusion matrix scaled to bank dataset size.</div>
+        <div className="drawer-note"><Icon name="alert" size={15} /> Metrics shown above are live per-bank evaluation values.</div>
       </aside>
     </div>
+  );
+}
+
+// ── Live Federated Simulation ──────────────────────────────────────────
+function FederatedSimulation() {
+  const { bankData, communicationMetrics, isLoading, error } = useData();
+  const [phase, setPhase] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [activeBank, setActiveBank] = useState(0);
+  const [selectedBank, setSelectedBank] = useState<BankMetric | null>(null);
+  const phases = ["Local training", "Send updates", "FedAvg aggregation", "Evaluate shared model"];
+  const phaseCopy = [
+    "Each bank learns from its own transactions. The coordinator is not involved in this computation.",
+    "Banks send parameter updates and weighting metadata. Raw transactions and account identifiers stay local.",
+    "The coordinator combines the updates into one shared model using Federated Averaging.",
+    "The shared model is tested separately at each bank so local gains and regressions remain visible.",
+  ];
+
+  useEffect(() => {
+    if (!playing) return;
+    const timer = window.setInterval(() => {
+      setPhase((current) => {
+        if (current >= phases.length - 1) {
+          setPlaying(false);
+          return current;
+        }
+        return current + 1;
+      });
+    }, 1800);
+    return () => window.clearInterval(timer);
+  }, [playing, phases.length]);
+
+  useEffect(() => {
+    if (!playing || phase !== 0 || !bankData.length) return;
+    const timer = window.setInterval(() => {
+      setActiveBank((current) => (current + 1) % Math.min(bankData.length, 5));
+    }, 650);
+    return () => window.clearInterval(timer);
+  }, [playing, phase, bankData.length]);
+
+  if (isLoading) return <DataState title="Loading simulation inputs" message="Reading participating bank results from the backend..." />;
+  if (error || !bankData.length) return <DataState title="Simulation unavailable" message={error || "No bank results are available for the replay."} />;
+
+  const visibleBanks = bankData.slice(0, 5);
+  const progress = ((phase + 1) / phases.length) * 100;
+  const averageLocal = visibleBanks.reduce((total, bank) => total + bank.local, 0) / visibleBanks.length;
+  const averageFed = visibleBanks.reduce((total, bank) => total + bank.fed, 0) / visibleBanks.length;
+  const averageGain = visibleBanks.reduce((total, bank) => total + bank.gain, 0) / visibleBanks.length;
+  const largestCommunication = communicationMetrics[communicationMetrics.length - 1];
+  const events = [
+    ...visibleBanks.map((bank, index) => ({
+      label: `Bank ${bank.id} ${phase === 0 && index === activeBank ? "is processing locally" : "finished local training"}`,
+      detail: "Raw transactions stayed inside the bank",
+      complete: phase > 0 || (phase === 0 && index < activeBank),
+    })),
+    ...visibleBanks.map((bank) => ({
+      label: `Bank ${bank.id} sent ${phase >= 1 ? "3,969" : "--"} parameters`,
+      detail: phase >= 1 ? "Weights and metadata only" : "Waiting for local training",
+      complete: phase >= 1,
+    })),
+    { label: "Coordinator validated payload", detail: "Schema PASS · raw_rows=0 · account_ids=0", complete: phase >= 2 },
+    { label: "FedAvg aggregation complete", detail: phase >= 2 ? "Shared model parameters updated" : "Waiting for client updates", complete: phase >= 3 },
+  ];
+  return (
+    <>
+      <PageHeader
+        eyebrow="Explainable workflow replay"
+        title="Federated learning, one round at a time."
+        description="Follow what each bank computes locally, what crosses the boundary, and how the coordinator produces a shared model."
+        action={<Chip tone="cyan">Replay mode · backend outcomes</Chip>}
+      />
+      <div className="simulation-toolbar">
+        <div><span className="section-label">Round 12 · visual replay <InfoTip text="This is an interactive replay of one federated round using the latest backend results. It does not train a new model." /></span><span className="sub-label">{phase === 0 ? `Bank ${activeBank + 1} of ${Math.min(bankData.length, 5)} is processing locally.` : phase === 1 ? "All participating banks are sending bounded updates." : "Uses the current backend bank evaluations; does not upload raw data."}</span></div>
+        <div className="simulation-actions">
+          <Button variant="emerald" size="sm" onClick={() => setPlaying((value) => !value)}>
+            <Icon name={playing ? "pause" : "play"} size={14} /> {playing ? "Pause replay" : "Play replay"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => { setPlaying(false); setPhase(0); setActiveBank(0); }}>
+            <Icon name="reset" size={14} /> Reset
+          </Button>
+        </div>
+      </div>
+      <div className="simulation-progress"><i style={{ width: `${progress}%` }} /></div>
+      <div className="simulation-phase-row">
+        {phases.map((label, index) => <button type="button" key={label} onClick={() => { setPlaying(false); setPhase(index); setActiveBank(0); }} className={index === phase ? "active" : index < phase ? "done" : ""}><span>{index < phase ? <Icon name="check" size={12} /> : index + 1}</span><b>{label}</b></button>)}
+      </div>
+      <div className="simulation-explainer">
+        <div className="simulation-explainer-icon"><Icon name={phase === 0 ? "bank" : phase === 1 ? "arrow" : phase === 2 ? "rounds" : "chart"} size={22} /></div>
+        <div><span className="section-label">Step {phase + 1} of {phases.length} · {phases[phase]} <InfoTip text={phaseCopy[phase]} /></span><p>{phaseCopy[phase]}</p></div>
+      </div>
+      <div className="simulation-kpi-row">
+        <div><span>Participants <InfoTip text="Number of bank clients included in this replay." /></span><b>{visibleBanks.length}</b><small>banks in this replay</small></div>
+        <div><span>Average local PR-AUC <InfoTip text="Mean Average Precision-Recall Area Under Curve before banks collaborate." /></span><b>{averageLocal.toFixed(3)}</b><small>before collaboration</small></div>
+        <div><span>Average shared PR-AUC <InfoTip text="Mean PR-AUC after the federated model is evaluated at each bank." /></span><b>{phase === 3 ? averageFed.toFixed(3) : "--"}</b><small>{phase === 3 ? "after FedAvg" : "available after evaluation"}</small></div>
+        <div><span>Average lift <InfoTip text="Shared PR-AUC minus local PR-AUC. Positive means the shared model improved on average." /></span><b className={averageGain >= 0 ? "positive" : "negative"}>{phase === 3 ? `${averageGain >= 0 ? "+" : ""}${averageGain.toFixed(3)}` : "--"}</b><small>shared minus local</small></div>
+      </div>
+
+      <div className="simulation-board">
+        <Glass className="simulation-banks">
+          <div className="card-top"><div><span className="section-label">Private bank computation <InfoTip text="Each bank trains on its own transaction rows. Only the resulting model update can leave this area." /></span><span className="sub-label">Raw transactions never leave this column</span></div><Chip tone="green">LOCAL ONLY</Chip></div>
+          <div className="simulation-bank-list">
+            {visibleBanks.map((bank, index) => (
+                <button type="button" className={`simulation-bank ${phase >= 1 ? "sent" : ""} ${phase === 0 && index === activeBank ? "processing" : ""}`} key={bank.id} onClick={() => setSelectedBank(bank)}>
+                <span className="bank-mark">{bank.id}</span>
+                <div><b>Bank {bank.id}</b><small>Local model · {bank.samples ?? "dataset"} samples</small><div className="simulation-bank-metrics"><span>Local {bank.local.toFixed(3)}</span><span>Shared {phase === 3 ? bank.fed.toFixed(3) : "--"}</span><em>{phase === 3 ? `${bank.gain >= 0 ? "+" : ""}${bank.gain.toFixed(3)}` : "pending"}</em></div></div>
+                  <span className="simulation-bank-state">{phase === 0 && index === activeBank ? "PROCESSING" : phase === 0 ? "QUEUED" : "UPDATE READY"}</span>
+                <div className="simulation-mini-bar"><i style={{ width: `${Math.min(94, 45 + index * 10 + phase * 12)}%` }} /></div>
+              </button>
+            ))}
+          </div>
+        </Glass>
+        <div className="simulation-bridge">
+          <div className="bridge-line" />
+          <div className="bridge-packet"><Icon name="arrow" size={18} /></div>
+          <span>{phase < 1 ? "Updates waiting" : "Model updates only"}</span>
+          <div className="bridge-line" />
+        </div>
+        <Glass className="simulation-coordinator">
+          <div className="card-top"><div><span className="section-label">Coordinator <InfoTip text="The coordinator receives bounded model updates and combines them with FedAvg. It never receives raw transaction rows." /></span><span className="sub-label">Aggregates parameters, not transactions</span></div><Chip tone={phase >= 2 ? "green" : "default"}>{phase >= 2 ? "AGGREGATING" : "WAITING"}</Chip></div>
+          <div className={`simulation-core ${phase >= 2 ? "active" : ""}`}><Icon name="rounds" size={28} /><b>FedAvg</b><small>weighted parameter merge</small></div>
+          <div className="simulation-payload"><span>Payload <InfoTip text="The coordinator receives model weights and minimal metadata for aggregation." /></span><b>weights + metadata</b><span>Parameters / client</span><b>{phase >= 1 ? "3,969 floats" : "--"}</b><span>Raw rows</span><b className="positive">0 shared</b><span>Account IDs</span><b className="positive">0 shared</b><span>Bandwidth / 5 rounds</span><b>{largestCommunication ? `${largestCommunication.estimated_bandwidth_kb_5_rounds} KB` : "--"}</b></div>
+        </Glass>
+      </div>
+
+      <Glass className="simulation-evaluation">
+        <div className="card-top"><div><span className="section-label">Shared model evaluation <InfoTip text="The aggregated model is evaluated independently at each bank, making local gains and regressions visible." /></span><span className="sub-label">The resulting model is tested independently at each bank</span></div><Chip tone={phase === 3 ? "green" : "default"}>{phase === 3 ? "RESULTS READY" : "PENDING"}</Chip></div>
+        <div className="simulation-results">
+          {visibleBanks.map((bank) => <div key={bank.id}><span>Bank {bank.id}</span><b>{phase === 3 ? bank.fed.toFixed(3) : "--"}</b><small>{phase === 3 ? `${bank.gain >= 0 ? "+" : ""}${bank.gain.toFixed(3)} vs local` : "Awaiting evaluation"}</small></div>)}
+        </div>
+      </Glass>
+      <Glass className="simulation-event-log">
+        <div className="card-top"><div><span className="section-label">Simulation event log</span><span className="sub-label">A readable trace of what happens during this federated round</span></div><Chip tone="default">{events.filter((event) => event.complete).length} events confirmed</Chip></div>
+        <div className="event-log-list">
+          {events.map((event, index) => <div className={`event-log-row ${event.complete ? "complete" : ""}`} key={`${event.label}-${index}`}><span>{event.complete ? <Icon name="check" size={12} /> : index + 1}</span><div><b>{event.label}</b><small>{event.detail}</small></div></div>)}
+        </div>
+      </Glass>
+      {selectedBank && <BankDrawer bank={selectedBank} onClose={() => setSelectedBank(null)} />}
+    </>
   );
 }
 
@@ -928,9 +1109,13 @@ function LayaTriageScreen() {
   const [text, setText] = useState(presets[0].text);
   const [txType, setTxType] = useState(presets[0].type);
   const [amount, setAmount] = useState<number>(presets[0].amount);
+  const [sender, setSender] = useState(presets[0].sender);
+  const [receiver, setReceiver] = useState(presets[0].receiver);
   const [threshold, setThreshold] = useState<number>(0.75);
   const [loading, setLoading] = useState<boolean>(false);
   const [result, setResult] = useState<TriageResponse | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const [lastRunAt, setLastRunAt] = useState<string | null>(null);
 
   const handleRunTriage = async (customPayload?: TriageRequest) => {
     setLoading(true);
@@ -939,8 +1124,8 @@ function LayaTriageScreen() {
         text,
         transaction_type: txType,
         amount,
-        sender: "C12345",
-        receiver: "M99999",
+        sender,
+        receiver,
         balance_before: amount,
         balance_after: 0,
         question_set: "triage",
@@ -948,8 +1133,11 @@ function LayaTriageScreen() {
       };
       const res = await runTriage(payload);
       setResult(res);
+      setRequestError(null);
+      setLastRunAt(new Date().toLocaleTimeString());
     } catch (e) {
       console.error("Triage failed:", e);
+      setRequestError(e instanceof Error ? e.message : "The triage request failed.");
     } finally {
       setLoading(false);
     }
@@ -965,6 +1153,8 @@ function LayaTriageScreen() {
     setText(p.text);
     setTxType(p.type);
     setAmount(p.amount);
+    setSender(p.sender);
+    setReceiver(p.receiver);
     handleRunTriage({
       text: p.text,
       transaction_type: p.type,
@@ -995,13 +1185,23 @@ function LayaTriageScreen() {
         }
       />
 
+      <div className="triage-flow-strip">
+        <div><span className="flow-number">01</span><b>Describe</b><small>Transaction context stays in the request</small></div>
+        <Icon name="arrow" size={15} />
+        <div><span className="flow-number">02</span><b>Classify</b><small>Laya scores fraud, urgency, and churn</small></div>
+        <Icon name="arrow" size={15} />
+        <div><span className="flow-number">03</span><b>Route</b><small>Confidence decides auto-action or review</small></div>
+        {lastRunAt && <span className="triage-last-run">Last run {lastRunAt}</span>}
+      </div>
+
       {/* Scenario Presets Selector Cards */}
       <div className="triage-preset-grid">
         {presets.map((p) => {
           const isSelected = activePresetId === p.id;
           return (
-            <div
+            <button
               key={p.id}
+              type="button"
               onClick={() => selectPreset(p)}
               className={`triage-preset-card ${isSelected ? "active" : ""}`}
             >
@@ -1017,7 +1217,7 @@ function LayaTriageScreen() {
                 <span>{p.subtext}</span>
                 {isSelected && <span className="font-semibold text-emerald-400">ACTIVE SCENARIO</span>}
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -1111,6 +1311,17 @@ function LayaTriageScreen() {
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-3.5 mb-5">
+              <label className="triage-field">
+                <span>Sender account</span>
+                <input value={sender} onChange={(e) => { setSender(e.target.value); setActivePresetId(""); }} />
+              </label>
+              <label className="triage-field">
+                <span>Receiver account</span>
+                <input value={receiver} onChange={(e) => { setReceiver(e.target.value); setActivePresetId(""); }} />
+              </label>
+            </div>
+
             {/* Guardrail Safety Threshold Slider */}
             <div className="p-4 bg-slate-950/60 border border-white/5 rounded-xl mb-4">
               <div className="flex items-center justify-between mb-2">
@@ -1163,6 +1374,7 @@ function LayaTriageScreen() {
               sub-40ms
             </span>
           </Button>
+          {requestError && <div className="triage-error"><Icon name="alert" size={14} /><span>{requestError}</span></div>}
         </Glass>
 
         {/* Right Card: Real-Time Model Decision Output */}
@@ -1195,6 +1407,24 @@ function LayaTriageScreen() {
               </div>
             ) : result ? (
               <div className="space-y-4">
+                <div className="triage-decision-grid">
+                  <div className="triage-decision-card primary">
+                    <span>Fraud category</span>
+                    <b>{String(result.fraud_category.result).replace(/_/g, " ")}</b>
+                    <small>{result.fraud_category.confidence == null ? "Confidence unavailable" : `${(result.fraud_category.confidence * 100).toFixed(1)}% confidence`}</small>
+                  </div>
+                  <div className="triage-decision-card">
+                    <span>Urgency</span>
+                    <b>{urgencyVal.toFixed(1)} / 2.0</b>
+                    <small>{urgencyVal >= 1.5 ? "Critical" : urgencyVal >= 1 ? "Elevated" : "Standard"} priority</small>
+                  </div>
+                  <div className="triage-decision-card">
+                    <span>Churn risk</span>
+                    <b>{(churnVal * 100).toFixed(0)}%</b>
+                    <small>{churnVal > 0.5 ? "Escalation likely" : "Low escalation risk"}</small>
+                  </div>
+                </div>
+
                 {/* Decision Callout Banner */}
                 {result.needs_review ? (
                   <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-200 text-xs shadow-lg">
@@ -1549,6 +1779,7 @@ function AppContent() {
           {screen === "overview" && <Overview />}
           {screen === "curve"    && <ParticipationCurve />}
           {screen === "banks"    && <BankResults />}
+          {screen === "simulation" && <FederatedSimulation />}
           {screen === "rounds"   && <TrainingRounds />}
           {screen === "audit"    && <Audit />}
           {screen === "triage"   && <LayaTriageScreen />}
