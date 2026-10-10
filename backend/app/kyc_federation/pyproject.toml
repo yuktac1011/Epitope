@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kyc-federation"
+version = "1.0.0"
+description = "Federated Learning simulation for KYC Deepfake screening"
+dependencies = [
+    "flwr[simulation]>=1.7.0",
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "datasets>=2.14.0",
+    "Pillow>=9.0.0"
+]
+
+[tool.flwr.app]
+publisher = "fedshield"
+
+[tool.flwr.app.components]
+serverapp = "server_app:app"
+clientapp = "client_app:app"
+
+[tool.flwr.app.config]
+num-server-rounds = 2
+fraction-fit = 1.0
+num-partitions = 3

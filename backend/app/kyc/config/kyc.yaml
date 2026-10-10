@@ -1,0 +1,29 @@
+version: "kyc-photo-1.0.0"
+thresholds_version: "2026-10-10"
+
+io:
+  max_file_bytes: 10485760 # 10 MB
+  max_image_pixels: 50000000 # 50 Megapixels
+  max_dimension: 4096
+  allowed_formats: ["JPEG", "PNG", "WEBP"]
+
+face:
+  model_path: "backend/app/kyc/models/face_detection_yunet_2023mar.onnx"
+  score_threshold: 0.60
+  nms_threshold: 0.30
+  dominant_area_ratio: 0.60
+  crop_margin_ratio: 1.25
+  target_size: [224, 224]
+
+quality:
+  min_face_size_px: 60
+  min_blur_variance: 45.0
+  min_mean_luminance: 35.0
+  max_mean_luminance: 235.0
+  max_clipped_fraction: 0.25
+
+decision:
+  t_low: 0.15
+  t_high: 0.75
+  cost_false_accept: 10.0
+  cost_false_reject: 1.0

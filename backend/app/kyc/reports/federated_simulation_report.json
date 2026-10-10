@@ -1,0 +1,18 @@
+{
+    "timestamp": "2026-10-09T20:05:56Z",
+    "num_clients": 3,
+    "num_rounds": 2,
+    "duration_seconds": 72.92,
+    "metrics_distributed": {
+        "ap": [
+            [
+                1,
+                0.6099
+            ],
+            [
+                2,
+                0.6511
+            ]
+        ]
+    }
+}

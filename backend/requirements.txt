@@ -39,3 +39,5 @@ pydantic>=2.5.0
 
 # Optional but recommended
 python-dotenv>=1.0.0
+Pillow>=9.0.0
+opencv-python-headless>=4.8.0
