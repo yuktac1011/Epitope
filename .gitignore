@@ -14,7 +14,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+/lib/
 lib64/
 parts/
 sdist/
@@ -69,13 +69,20 @@ venv.bak/
 
 # Datasets / Data files
 *.parquet
-
-*.json
 *.db
 *.sqlite3
 data/
 datasets/
+results/
 purulalwani___synthetic-financial-datasets-for-fraud-detection/
+
+# Config whitelists (do not ignore package or config files)
+!package.json
+!package-lock.json
+!tsconfig.json
+!components.json
+!frontend/src/lib/
+!frontend/src/lib/**
 
 # IDEs and Editors
 .idea/
