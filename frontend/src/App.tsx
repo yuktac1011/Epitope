@@ -1210,16 +1210,20 @@ function LayaTriageScreen() {
         }
       />
 
+      <div className="laya-flow-header">
+        <div className="laya-flow-title"><span className="eyebrow">Decision workflow</span><h2>From report to controlled action</h2><p>Choose a scenario or write your own case, then inspect the model decision before routing it.</p></div>
+        {lastRunAt && <span className="triage-last-run">Last run {lastRunAt}</span>}
+      </div>
       <div className="triage-flow-strip">
         <div><span className="flow-number">01</span><b>Describe</b><small>Transaction context stays in the request</small></div>
         <Icon name="arrow" size={15} />
         <div><span className="flow-number">02</span><b>Classify</b><small>Laya scores fraud, urgency, and churn</small></div>
         <Icon name="arrow" size={15} />
         <div><span className="flow-number">03</span><b>Route</b><small>Confidence decides auto-action or review</small></div>
-        {lastRunAt && <span className="triage-last-run">Last run {lastRunAt}</span>}
       </div>
 
       {/* Scenario Presets Selector Cards */}
+      <div className="laya-section-heading"><div><span className="section-label">Start with a scenario</span><p>Use a prepared case to demonstrate the workflow, or edit the fields below for a custom report.</p></div><InfoTip text="Presets are demonstration inputs. Real deployments should use an approved case intake form." /></div>
       <div className="triage-preset-grid">
         {presets.map((p) => {
           const isSelected = activePresetId === p.id;
@@ -1247,9 +1251,9 @@ function LayaTriageScreen() {
         })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="laya-workbench">
         {/* Left Card: Input Context & Configuration */}
-        <Glass className="p-6 flex flex-col justify-between border border-white/10 shadow-2xl">
+        <Glass className="laya-panel laya-input-panel">
           <div>
             <div className="flex items-center justify-between pb-3.5 mb-5 border-b border-white/10">
               <div className="flex items-center gap-2.5">
@@ -1403,7 +1407,7 @@ function LayaTriageScreen() {
         </Glass>
 
         {/* Right Card: Real-Time Model Decision Output */}
-        <Glass className="p-6 flex flex-col justify-between border border-white/10 shadow-2xl">
+        <Glass className="laya-panel laya-result-panel">
           <div>
             <div className="flex items-center justify-between pb-3.5 mb-5 border-b border-white/10">
               <div className="flex items-center gap-2.5">
@@ -1432,7 +1436,8 @@ function LayaTriageScreen() {
               </div>
             ) : result ? (
               <div className="space-y-4">
-                <div className="triage-decision-grid">
+                <div className="result-section-label"><span>Decision summary</span><InfoTip text="These three values summarize what Laya identified, how urgent it is, and whether the case may need additional customer-care handling." /></div>
+                <div className="triage-decision-grid result-summary-grid">
                   <div className="triage-decision-card primary">
                     <span>Fraud category</span>
                     <b>{String(result.fraud_category.result).replace(/_/g, " ")}</b>
@@ -1452,7 +1457,7 @@ function LayaTriageScreen() {
 
                 {/* Decision Callout Banner */}
                 {result.needs_review ? (
-                  <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-200 text-xs shadow-lg">
+                  <div className="result-action-banner review">
                     <div className="font-bold flex items-center gap-2 mb-1.5 text-amber-300">
                       <Icon name="alert" size={15} />
                       <span>Review Triggered: Human Review Mandatory</span>
@@ -1466,7 +1471,7 @@ function LayaTriageScreen() {
                     </div>
                   </div>
                 ) : (
-                  <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-200 text-xs shadow-lg flex items-center gap-2.5">
+                  <div className="result-action-banner approved">
                     <div className="w-6 h-6 rounded-full bg-emerald-500/20 grid place-items-center text-emerald-400 shrink-0">
                       <Icon name="check" size={14} />
                     </div>
@@ -1479,8 +1484,9 @@ function LayaTriageScreen() {
                   </div>
                 )}
 
+                <div className="result-section-label result-evidence-heading"><span>Evidence behind the decision</span><InfoTip text="The probability bars show the leading categories considered by the local Laya model. They are model evidence, not proof." /></div>
                 {/* Primary Fraud Category Breakdown Card */}
-                <div className="p-4 bg-slate-950/70 border border-slate-800 rounded-xl">
+                <div className="result-classification-card">
                   <div className="flex justify-between items-center mb-1.5">
                     <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                       Primary Classification
@@ -1492,9 +1498,10 @@ function LayaTriageScreen() {
                     </span>
                   </div>
 
-                  <b className="text-lg text-white capitalize block tracking-tight mb-3">
+                  <b className="result-classification-title">
                     {String(result.fraud_category.result).replace(/_/g, " ")}
                   </b>
+                  <p className="result-classification-copy">Most likely pattern from the submitted report.</p>
 
                   {/* Probabilities Breakdown with Full Width Bars */}
                   {result.fraud_category.probabilities && (
@@ -1541,7 +1548,7 @@ function LayaTriageScreen() {
                 </div>
 
                 {/* Diagnostic Meters Grid */}
-                <div className="grid grid-cols-2 gap-3.5">
+                <div className="result-diagnostics-grid">
                   {/* Urgency Meter */}
                   <div className="diagnostic-meter">
                     <div>
@@ -1589,6 +1596,7 @@ function LayaTriageScreen() {
                   </div>
                 </div>
 
+                <div className="result-section-label telemetry-heading"><span>Inference telemetry</span><InfoTip text="Runtime details describe this local inference request and do not represent fraud confidence." /></div>
                 {/* Telemetry Chips Grid */}
                 <div className="telemetry-chip-grid">
                   <div className="telemetry-chip">
