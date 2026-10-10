@@ -1,0 +1,17 @@
+# Render Blueprint Configuration (render.yaml)
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: fedshield-backend
+    env: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: free
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: PYTHONUNBUFFERED
+        value: "1"

@@ -21,6 +21,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { DataProvider, useData } from "@/lib/data-context";
 import {
+  API_BASE_URL,
   BankMetric,
   TriageRequest,
   TriageResponse,
@@ -633,9 +634,30 @@ function ScatterPlot() {
 }
 
 function BankDrawer({ bank, onClose }: { bank: BankMetric; onClose: () => void }) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
   return (
-    <div className="drawer-backdrop" onClick={onClose}>
-      <aside className="drawer" onClick={(e) => e.stopPropagation()}>
+    <div className="drawer-backdrop" onClick={onClose} role="presentation">
+      <aside
+        className="drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Bank ${bank.id} participant detail`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="drawer-head">
           <div>
             <span className="eyebrow">Participant detail</span>
@@ -679,7 +701,7 @@ function BankDrawer({ bank, onClose }: { bank: BankMetric; onClose: () => void }
 // ── Live Federated Simulation ──────────────────────────────────────────
 function FederatedSimulation() {
   const { bankData, communicationMetrics, isLoading, error } = useData();
-  const [phase, setPhase] = useState(0);
+  const [phase, setPhase] = useState(3);
   const [playing, setPlaying] = useState(false);
   const [activeBank, setActiveBank] = useState(0);
   const [selectedBank, setSelectedBank] = useState<BankMetric | null>(null);
@@ -747,7 +769,19 @@ function FederatedSimulation() {
       <div className="simulation-toolbar">
         <div><span className="section-label">Round 12 · visual replay <InfoTip text="This is an interactive replay of one federated round using the latest backend results. It does not train a new model." /></span><span className="sub-label">{phase === 0 ? `Bank ${activeBank + 1} of ${Math.min(bankData.length, 5)} is processing locally.` : phase === 1 ? "All participating banks are sending bounded updates." : "Uses the current backend bank evaluations; does not upload raw data."}</span></div>
         <div className="simulation-actions">
-          <Button variant="emerald" size="sm" onClick={() => setPlaying((value) => !value)}>
+          <Button
+            variant="emerald"
+            size="sm"
+            onClick={() => {
+              if (phase === phases.length - 1 && !playing) {
+                setPhase(0);
+                setActiveBank(0);
+                setPlaying(true);
+                return;
+              }
+              setPlaying((value) => !value);
+            }}
+          >
             <Icon name={playing ? "pause" : "play"} size={14} /> {playing ? "Pause replay" : "Play replay"}
           </Button>
           <Button variant="outline" size="sm" onClick={() => { setPlaying(false); setPhase(0); setActiveBank(0); }}>
@@ -1908,7 +1942,7 @@ function AppContent() {
             <p>Coordinator ingress: strict gradient tensors only. No raw PII exported.</p>
             <div className="flex items-center gap-1.5 mt-1 pt-1.5 border-t border-white/5 text-[10px] font-mono text-emerald-400">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>FastAPI 127.0.0.1:8000</span>
+              <span>FastAPI · {API_BASE_URL.replace(/^https?:\/\//, "")}</span>
             </div>
           </div>
         </div>
@@ -1938,7 +1972,7 @@ function AppContent() {
           <div className="flex items-center gap-3">
             <Chip tone={isBackendConnected ? "green" : "amber"}>
               <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${isBackendConnected ? "bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse" : "bg-amber-400"}`} />
-              {isBackendConnected ? "FastAPI Live · 127.0.0.1:8000" : "Offline Cache · Retrying"}
+              {isBackendConnected ? `FastAPI Live · ${API_BASE_URL.replace(/^https?:\/\//, "")}` : "Offline Cache · Retrying"}
             </Chip>
             <button
               onClick={() => refetchAll()}
