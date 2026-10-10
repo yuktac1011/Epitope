@@ -114,6 +114,7 @@ class TriageResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     """Response from the /health endpoint."""
+    model_config = {"protected_namespaces": ()}
     status: str  # "ready" | "loading" | "unavailable"
     model_loaded: bool
     checkpoint: Optional[str] = None

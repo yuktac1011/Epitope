@@ -41,6 +41,7 @@ class PerBankMetric(BaseModel):
     improvement: float
 
 class AuditResponse(BaseModel):
+    model_config = {"protected_namespaces": ()}
     status: str
     raw_transactions_shared: int
     account_ids_shared: int
