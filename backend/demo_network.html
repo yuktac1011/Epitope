@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FedShield Interactive Sandbox & Payload Audit</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+        }
+        
+        .main-column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 700px;
+        }
+        
+        .side-column {
+            display: flex;
+            flex-direction: column;
+            width: 450px;
+            gap: 20px;
+        }
+
+        h1 { margin-bottom: 5px; color: #38bdf8; text-align: center;}
+        p.subtitle { color: #94a3b8; margin-bottom: 20px; text-align: center; }
+        
+        #dashboard {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            align-items: center;
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        select {
+            padding: 8px 12px;
+            background-color: #334155;
+            color: white;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            font-size: 1rem;
+            outline: none;
+        }
+        
+        button.action-btn {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+            transition: all 0.2s;
+            margin-top: 15px;
+        }
+        
+        button.action-btn:hover {
+            background-color: #2563eb;
+            transform: translateY(-2px);
+        }
+
+        button.action-btn:disabled {
+            background-color: #475569;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        #network {
+            position: relative;
+            width: 700px;
+            height: 450px;
+            background-color: #0f172a;
+            border: 2px solid #334155;
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .node {
+            position: absolute;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .node-label { font-size: 0.8rem; margin-top: 4px; pointer-events: none;}
+
+        #server {
+            width: 100px;
+            height: 100px;
+            background-color: #10b981;
+            top: 175px;
+            left: 300px;
+            z-index: 10;
+            cursor: pointer;
+        }
+
+        .client {
+            width: 60px;
+            height: 60px;
+            background-color: #10b981;
+        }
+        
+        .client:hover, #server:hover {
+            transform: scale(1.1);
+            border: 2px solid white;
+        }
+        
+        .malicious {
+            background-color: #ef4444 !important;
+            box-shadow: 0 0 20px #ef4444 !important;
+        }
+
+        #c0 { top: 30px; left: 320px; }
+        #c1 { top: 120px; left: 560px; }
+        #c2 { top: 320px; left: 470px; }
+        #c3 { top: 320px; left: 170px; }
+        #c4 { top: 120px; left: 80px; }
+
+        .packet {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: #10b981;
+            opacity: 0;
+            z-index: 5;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: #fff;
+            font-weight: bold;
+        }
+        
+        .packet:hover {
+            transform: scale(1.3) !important;
+            border: 2px solid white;
+            z-index: 20;
+        }
+
+        @keyframes movePacket {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            80% { opacity: 1; }
+            100% { transform: translate(var(--tx), var(--ty)) scale(0.5); opacity: 0; }
+        }
+
+        #status {
+            margin-top: 20px;
+            padding: 15px 25px;
+            border-radius: 8px;
+            background-color: #1e293b;
+            font-size: 1.1rem;
+            font-weight: bold;
+            width: 100%;
+            text-align: center;
+            border: 1px solid #334155;
+            box-sizing: border-box;
+        }
+        
+        #ap-display {
+            font-size: 1.5rem;
+            color: #38bdf8;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+        
+        .instructions {
+            margin-top: 10px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            color: #fbbf24;
+            text-align: center;
+        }
+
+        /* Side Panel / Payload Inspector */
+        .info-card {
+            background-color: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 20px;
+            overflow-y: auto;
+            max-height: 80vh;
+        }
+
+        .info-card h2 { margin-top: 0; color: #38bdf8; font-size: 1.2rem; border-bottom: 1px solid #334155; padding-bottom: 10px;}
+        .info-card h3 { color: #10b981; font-size: 1rem; margin-top: 20px; margin-bottom: 5px;}
+        .info-card h3.danger { color: #ef4444; }
+        .info-card h3.warning { color: #fbbf24; }
+        .info-card ul { padding-left: 20px; margin-top: 5px; color: #cbd5e1; font-size: 0.9rem;}
+        .info-card li { margin-bottom: 8px; }
+        
+        .live-payload {
+            background-color: #0f172a;
+            border: 1px solid #10b981;
+            padding: 10px;
+            border-radius: 8px;
+            font-family: monospace;
+            color: #10b981;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .live-payload.malicious {
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-column">
+        <h1>FedShield Sandbox</h1>
+        <p class="subtitle">Visualizing Attacks, Defenses, and Packet Inspection</p>
+
+        <div id="dashboard">
+            <div class="control-group">
+                <label for="defense">Server Aggregation Defense:</label>
+                <select id="defense">
+                    <option value="FedAvg">Standard FedAvg (No Defense)</option>
+                    <option value="CoordinateMedian">Coordinate Median (Robust)</option>
+                    <option value="TrimmedMean">Trimmed Mean 20% (Robust)</option>
+                    <option value="Krum">Krum (Robust)</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <button id="btn-run" class="action-btn" onclick="runSimulation()">Execute Round (Upload & Download)</button>
+            </div>
+        </div>
+        
+        <div class="instructions">👆 Click Bank nodes to toggle Poison. Click flying packets to Inspect Payload!</div>
+
+        <div id="network">
+            <div id="server" class="node" onclick="showServerPayload()">Global<br>Model</div>
+            
+            <div id="c0" class="node client" onclick="toggleNode(0)">B0<div class="node-label">Honest</div></div>
+            <div id="c1" class="node client" onclick="toggleNode(1)">B1<div class="node-label">Honest</div></div>
+            <div id="c2" class="node client" onclick="toggleNode(2)">B2<div class="node-label">Honest</div></div>
+            <div id="c3" class="node client" onclick="toggleNode(3)">B3<div class="node-label">Honest</div></div>
+            <div id="c4" class="node client" onclick="toggleNode(4)">B4<div class="node-label">Honest</div></div>
+        </div>
+
+        <div id="status">System Ready. Configure attackers and press Execute.</div>
+        <div id="ap-display">Macro AP: 0.650 (Clean Baseline)</div>
+    </div>
+
+    <div class="side-column">
+        <div class="info-card" id="inspector-card">
+            <h2>Live Payload Inspector</h2>
+            <p style="color: #94a3b8; font-size: 0.9rem;">Click on any flying packet to intercept and inspect its JSON contents.</p>
+            <div id="live-payload-box" class="live-payload"></div>
+        </div>
+    </div>
+
+    <script>
+        const server = document.getElementById('server');
+        const clients = [
+            document.getElementById('c0'),
+            document.getElementById('c1'),
+            document.getElementById('c2'),
+            document.getElementById('c3'),
+            document.getElementById('c4')
+        ];
+        const status = document.getElementById('status');
+        const apDisplay = document.getElementById('ap-display');
+        const network = document.getElementById('network');
+        const btnRun = document.getElementById('btn-run');
+        const defenseSelect = document.getElementById('defense');
+        const livePayloadBox = document.getElementById('live-payload-box');
+
+        // State
+        let maliciousClients = [false, false, false, false, false];
+        let isAnimating = false;
+
+        const serverPos = { x: 350, y: 225 }; 
+        const clientPos = [
+            { x: 350, y: 60 },
+            { x: 590, y: 150 },
+            { x: 500, y: 350 },
+            { x: 200, y: 350 },
+            { x: 110, y: 150 }
+        ];
+
+        function toggleNode(idx) {
+            if (isAnimating) return;
+            maliciousClients[idx] = !maliciousClients[idx];
+            
+            const node = clients[idx];
+            const label = node.querySelector('.node-label');
+            
+            if (maliciousClients[idx]) {
+                node.classList.add('malicious');
+                label.innerText = 'Poisoned';
+            } else {
+                node.classList.remove('malicious');
+                label.innerText = 'Honest';
+            }
+        }
+
+        function showPayload(type, isMalicious, sourceId) {
+            livePayloadBox.style.display = 'block';
+            livePayloadBox.className = 'live-payload ' + (isMalicious ? 'malicious' : '');
+            
+            if (type === 'uplink') {
+                const noise = isMalicious ? 'Malicious Scaled/Flipped' : 'DP-Noised';
+                livePayloadBox.innerText = `[INTERCEPTED UPLINK FROM ${sourceId}]\n\n` +
+                    `{ \n` +
+                    `  "mlp_weights": Array(784x256, 256x64, ...),\n` +
+                    `  "ae_weights": Array(64x32, 32x64, ...),\n` +
+                    `  "num_samples": ${isMalicious ? '99999999 (Spoofed)' : '45218'},\n` +
+                    `  "status": "${noise}"\n` +
+                    `}\n\n` +
+                    `> Audit Guard Passed: No PII detected.`;
+            } else if (type === 'downlink') {
+                livePayloadBox.innerText = `[INTERCEPTED DOWNLINK FROM SERVER]\n\n` +
+                    `{ \n` +
+                    `  "global_mlp": Array(...),\n` +
+                    `  "global_ae": Array(...),\n` +
+                    `  "round_num": 3,\n` +
+                    `  "lr": 0.001\n` +
+                    `}\n\n` +
+                    `> Valid broadcast to all banks.`;
+            }
+        }
+        
+        function showServerPayload() {
+            livePayloadBox.style.display = 'block';
+            livePayloadBox.className = 'live-payload';
+            livePayloadBox.innerText = `[SERVER STATE]\n\nAggregating weights from clients...\nRunning Defense: ${defenseSelect.value}`;
+        }
+
+        function spawnPacket(cIdx, isMalicious, delay, direction, rejected = false) {
+            const pkt = document.createElement('div');
+            pkt.className = 'packet';
+            pkt.style.backgroundColor = isMalicious ? '#ef4444' : '#10b981';
+            pkt.style.boxShadow = `0 0 15px ${isMalicious ? '#ef4444' : '#10b981'}`;
+            pkt.innerText = "{ }";
+            
+            let startX, startY, tx, ty;
+            
+            if (direction === 'up') {
+                startX = clientPos[cIdx].x - 15;
+                startY = clientPos[cIdx].y - 15;
+                tx = serverPos.x - clientPos[cIdx].x;
+                ty = serverPos.y - clientPos[cIdx].y;
+            } else { // down
+                startX = serverPos.x - 15;
+                startY = serverPos.y - 15;
+                tx = clientPos[cIdx].x - serverPos.x;
+                ty = clientPos[cIdx].y - serverPos.y;
+            }
+
+            pkt.style.left = startX + 'px';
+            pkt.style.top = startY + 'px';
+            
+            pkt.style.setProperty('--tx', tx + 'px');
+            pkt.style.setProperty('--ty', ty + 'px');
+            
+            // Much slower animation so they are easy to click
+            const animDuration = rejected ? '3s' : '4s';
+            if (rejected) {
+                pkt.style.setProperty('--tx', (tx * 0.65) + 'px');
+                pkt.style.setProperty('--ty', (ty * 0.65) + 'px');
+            }
+
+            pkt.style.animation = `movePacket ${animDuration} forwards linear`;
+            pkt.style.animationDelay = delay + 'ms';
+            
+            // Add click listener to show payload
+            pkt.addEventListener('click', () => {
+                showPayload(direction === 'up' ? 'uplink' : 'downlink', isMalicious, 'Bank ' + cIdx);
+                // Pause animation temporarily when clicked
+                pkt.style.animationPlayState = 'paused';
+                setTimeout(() => pkt.style.animationPlayState = 'running', 2500);
+            });
+            
+            network.appendChild(pkt);
+        }
+
+        function evaluateDefense(defense, numAttackers) {
+            let ap = 0.650;
+            if (numAttackers === 0) return { success: true, msg: "Clean round completed.", ap: 0.650 };
+            
+            if (defense === 'FedAvg') {
+                ap = Math.max(0.100, 0.650 - 0.3 * numAttackers);
+                return { success: false, msg: "FedAvg compromised by malicious weights!", ap: ap };
+            }
+            if (defense === 'CoordinateMedian') {
+                ap = 0.650 - 0.05 * numAttackers;
+                if (numAttackers <= 2) return { success: true, msg: "Coord Median rejected poisoned arrays!", ap: ap };
+                return { success: false, msg: "Coord Median failed! (>50% Byzantine).", ap: ap };
+            }
+            if (defense === 'TrimmedMean') {
+                if (numAttackers <= 1) {
+                    ap = 0.650 - 0.02 * numAttackers;
+                    return { success: true, msg: "Trimmed Mean successfully trimmed outlier!", ap: ap };
+                }
+                ap = 0.400; 
+                return { success: false, msg: "Trimmed Mean failed! 2 attackers exceeded 20% trim.", ap: ap };
+            }
+            if (defense === 'Krum') {
+                if (numAttackers <= 1) {
+                    ap = 0.650 - 0.03 * numAttackers;
+                    return { success: true, msg: "Krum selected an honest client gradient.", ap: ap };
+                }
+                ap = 0.590; 
+                return { success: false, msg: "Krum failed! (Math requires N >= 2f + 3).", ap: ap };
+            }
+            return { success: false, msg: "Unknown result", ap: 0.0 };
+        }
+
+        function runSimulation() {
+            if (isAnimating) return;
+            isAnimating = true;
+            btnRun.disabled = true;
+            defenseSelect.disabled = true;
+            livePayloadBox.style.display = 'none';
+            
+            document.querySelectorAll('.packet').forEach(p => p.remove());
+            server.style.backgroundColor = '#10b981';
+            server.style.boxShadow = '0 0 15px #10b981';
+            status.style.color = '#f8fafc';
+            status.innerText = "Transmitting local gradients (UPLINK)... [Click a {} packet to inspect]";
+            apDisplay.innerText = "Macro AP: Calculating...";
+            
+            const defense = defenseSelect.value;
+            const numAttackers = maliciousClients.filter(x => x).length;
+            const result = evaluateDefense(defense, numAttackers);
+            
+            // Phase 1: Uplink
+            clients.forEach((c, idx) => {
+                const isMalicious = maliciousClients[idx];
+                const rejected = isMalicious && result.success;
+                setTimeout(() => spawnPacket(idx, isMalicious, 0, 'up', rejected), idx * 200);
+            });
+            
+            // Phase 2: Server Aggregation & Downlink
+            setTimeout(() => {
+                if (result.success) {
+                    const shieldColor = numAttackers > 0 ? '#3b82f6' : '#10b981';
+                    server.style.backgroundColor = shieldColor;
+                    server.style.boxShadow = `0 0 30px ${shieldColor}`;
+                    server.style.transform = 'scale(1.1)';
+                    setTimeout(() => server.style.transform = 'scale(1)', 300);
+                    
+                    status.innerText = `Aggregating... ${result.msg} Transmitting global weights (DOWNLINK)`;
+                    
+                    // Downlink animation (All green, since server successfully defended)
+                    clients.forEach((c, idx) => {
+                        setTimeout(() => spawnPacket(idx, false, 0, 'down', false), idx * 200);
+                    });
+                    
+                } else {
+                    server.style.backgroundColor = '#ef4444';
+                    server.style.boxShadow = '0 0 30px #ef4444';
+                    
+                    status.innerText = `[COMPROMISED] ${result.msg} Broadcasting corrupted model (DOWNLINK)`;
+                    status.style.color = '#ef4444';
+                    
+                    // Downlink animation (All red, server is corrupted)
+                    clients.forEach((c, idx) => {
+                        setTimeout(() => spawnPacket(idx, true, 0, 'down', false), idx * 200);
+                    });
+                }
+                
+                // End simulation
+                setTimeout(() => {
+                    apDisplay.innerText = `Macro AP: ${result.ap.toFixed(3)}`;
+                    isAnimating = false;
+                    btnRun.disabled = false;
+                    defenseSelect.disabled = false;
+                }, 3000);
+                
+            }, 5000); // Wait for much slower uplink to finish
+        }
+    </script>
+</body>
+</html>
