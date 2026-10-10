@@ -145,8 +145,9 @@ function Overview() {
     return <DataState title="Loading experiment results" message="Connecting to the FedShield backend..." />;
   }
 
-  const values = metricsByParticipation[banks];
-  if (!values) {
+  const currentMacro = macroResults.find(r => r.num_participating_banks === banks);
+
+  if (!currentMacro) {
     return (
       <DataState
         title="Experiment results unavailable"
@@ -155,11 +156,28 @@ function Overview() {
     );
   }
 
-  const metrics = [
-      ["PR-AUC", values[0]],
-      ["Recall @ 1% FPR", values[1]],
-      ["Average Precision", values[2]],
-  ];
+  let metrics: [string, number][] = [];
+  let footerText = "";
+
+  if (scope === "Macro average") {
+    metrics = [
+      ["PR-AUC", currentMacro.macro_pr_auc],
+      ["Recall @ 1% FPR", currentMacro.macro_recall_1fpr],
+      ["Average Precision", currentMacro.macro_average_precision],
+    ];
+    footerText = "Macro average from backend";
+  } else {
+    const activeBanks = bankData.slice(0, banks);
+    const avgFed = activeBanks.length > 0 ? activeBanks.reduce((sum, b) => sum + b.fed, 0) / activeBanks.length : 0;
+    const avgRecall = activeBanks.length > 0 ? activeBanks.reduce((sum, b) => sum + b.recall, 0) / activeBanks.length : 0;
+    
+    metrics = [
+      ["PR-AUC", avgFed],
+      ["Recall @ 1% FPR", avgRecall],
+      ["Average Precision", avgFed],
+    ];
+    footerText = "Average of individual banks";
+  }
 
   return (
     <>
@@ -204,7 +222,7 @@ function Overview() {
                 <div className="kpi-label">{label}</div>
                 <div className={`kpi-value ${i === 0 ? "primary-value" : ""}`}>{Number(value).toFixed(3)}</div>
                 <div className="kpi-foot">
-                    <span>Macro average from backend</span>
+                    <span>{footerText}</span>
                 </div>
               </Glass>
             ))}
